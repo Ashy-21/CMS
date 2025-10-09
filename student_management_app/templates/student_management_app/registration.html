@@ -1,0 +1,157 @@
+{% extends "student_management_app/base.html" %}
+{% load static %}
+{% block title %}Register{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-8">
+    <div class="card p-4">
+      <h4 class="mb-3">Register</h4>
+
+      {% if college %}
+        <div class="alert alert-info">
+          Registering for: <strong>{{ college.name }}</strong>
+          <form method="post" action="{% url 'student_management_app:home' %}" style="display:inline;">
+            {% csrf_token %}
+            <input type="hidden" name="select_college" value="1">
+            <button class="btn btn-sm btn-link">Change college</button>
+          </form>
+        </div>
+      {% else %}
+        <div class="alert alert-warning">No college selected. Choose from the list below to register.</div>
+      {% endif %}
+
+      {# NOTE: Use the canonical register url name. Adjust to 'registration' if your urls use that instead. #}
+      <form method="post" action="{% url 'student_management_app:register' %}">
+        {% csrf_token %}
+
+        {# allow user to choose college here if none selected #}
+        {% if not college %}
+          <div class="mb-3">
+            <label class="form-label">College</label>
+            <select name="college_id" class="form-select" required>
+              <option value="">-- choose college --</option>
+              {% for c in colleges %}
+                <option value="{{ c.id }}">{{ c.name }} ({{ c.code }})</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">If your college is not listed, go to homepage and create it first.</div>
+          </div>
+        {% else %}
+          <input type="hidden" name="college_id" value="{{ college.id }}">
+        {% endif %}
+
+        <div class="mb-3">
+          <label class="form-label">Role</label>
+          <select id="role" name="user_type" class="form-select" required>
+            <option value="1">Student</option>
+            <option value="2">Staff</option>
+            <option value="3">HOD</option>
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Username</label>
+          <input name="username" class="form-control" required>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Email</label>
+          <input name="email" class="form-control" type="email" required>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Password</label>
+          <input name="password" class="form-control" type="password" required>
+        </div>
+
+        {# Student-specific fields #}
+        <div id="student_fields">
+          <div class="mb-3">
+            <label class="form-label">Student ID</label>
+            <input name="student_id" class="form-control">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Roll No</label>
+            <input name="roll_no" class="form-control">
+          </div>
+        </div>
+
+        {# Staff-specific fields #}
+        <div id="staff_fields" style="display:none;">
+          <div class="mb-3">
+            <label class="form-label">Employee ID</label>
+            <input name="employee_id" class="form-control">
+          </div>
+        </div>
+
+        {# HOD-specific fields #}
+        <div id="hod_fields" style="display:none;">
+          <div class="mb-3">
+            <label class="form-label">HOD ID</label>
+            <input name="hod_id" class="form-control">
+          </div>
+        </div>
+
+        {# department / year / semester #}
+        <div class="mb-3">
+          <label class="form-label">Department</label>
+          <select name="department" class="form-select">
+            <option value="">Choose department</option>
+            {% for d in departments %}
+              <option value="{{ d.id }}">{{ d.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Year</label>
+          <select name="year" class="form-select">
+            <option value="">Choose</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Semester</label>
+          <select name="semester" class="form-select">
+            <option value="">Choose</option>
+            {% for s in semesters %}
+              <option value="{{ s.id }}">{{ s.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="mt-3">
+          <button class="btn btn-primary" type="submit">Register</button>
+          <a class="btn btn-link" href="{% url 'student_management_app:login' %}">Login</a>
+        </div>
+      </form>
+
+      <div class="mt-3 small text-muted">
+        Note: Departments and Years are managed by the college admin in the Admin panel.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // show/hide role-specific fields
+  function updateRoleFields() {
+    const role = document.getElementById('role').value;
+    document.getElementById('student_fields').style.display = (role === '1') ? 'block' : 'none';
+    document.getElementById('staff_fields').style.display = (role === '2') ? 'block' : 'none';
+    document.getElementById('hod_fields').style.display = (role === '3') ? 'block' : 'none';
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    const roleSel = document.getElementById('role');
+    if (roleSel) {
+      roleSel.addEventListener('change', updateRoleFields);
+      updateRoleFields();
+    }
+  });
+</script>
+{% endblock %}

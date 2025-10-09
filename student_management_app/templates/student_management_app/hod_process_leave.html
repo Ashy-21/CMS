@@ -1,0 +1,18 @@
+{% extends "student_management_app/base.html" %}
+{% block content %}
+<h3>Process Leave</h3>
+<div class="card p-3">
+  <p><strong>User:</strong>
+    {% if leave.staff %} {{ leave.staff.admin.username }} {% else %} {{ leave.student.admin.username }} {% endif %}
+  </p>
+  <p><strong>Date:</strong> {{ leave.date }}</p>
+  <p><strong>Message:</strong> {{ leave.message }}</p>
+
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button class="btn btn-success" type="submit" name="decision" value="approve">Approve</button>
+    <button class="btn btn-danger" type="submit" name="decision" value="reject">Reject</button>
+  </form>
+</div>
+{% endblock %}

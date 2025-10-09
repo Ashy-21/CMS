@@ -1,0 +1,30 @@
+{% extends "student_management_app/base.html" %}
+{% block content %}
+<h3>Mark Attendance</h3>
+<form method="post">
+  {% csrf_token %}
+  <div class="row">
+    <div class="col-md-4">
+      <label>Course</label>
+      <select name="course" class="form-select" required>
+        {% for c in courses %}
+          <option value="{{ c.id }}">{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label>Session</label>
+      <select name="session" class="form-select" required>
+        {% for s in sessions %}
+          <option value="{{ s.id }}">{{ s.session_start_year }}-{{ s.session_end_year }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label>Date</label>
+      <input type="date" name="attendance_date" class="form-control" required>
+    </div>
+  </div>
+  <button type="submit" class="btn btn-success mt-3">Submit</button>
+</form>
+{% endblock %}

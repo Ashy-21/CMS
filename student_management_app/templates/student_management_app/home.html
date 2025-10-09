@@ -1,0 +1,102 @@
+{% extends "student_management_app/base.html" %}
+{% load static %}
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-md-8">
+    <div class="card p-4 mb-3">
+      <h3>Welcome to {% if college_profile %}{{ college_profile.name }}{% else %}College CMS{% endif %}</h3>
+      <p class="lead">Manage students, staff, attendance and results.</p>
+      {% if college_profile %}
+        <p class="mb-0"><strong>Current college:</strong> {{ college_profile.name }} ({{ college_profile.code }})</p>
+      {% else %}
+        <p class="mb-0 text-muted">No college has been selected yet.</p>
+      {% endif %}
+    </div>
+
+    {% if college_profile %}
+      <div class="card p-3 mb-3">
+        <h5>Portal</h5>
+        <div class="d-grid gap-2">
+          <a href="{% url 'student_management_app:login' %}" class="btn btn-primary">Login</a>
+          <a href="{% url 'student_management_app:registration' %}" class="btn btn-outline-secondary">Register</a>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="col-md-4">
+    <div class="card p-3 mb-3">
+      {% if colleges and colleges.count %}
+        <h6>Select college</h6>
+        <form method="post" action="{% url 'student_management_app:home' %}">
+          {% csrf_token %}
+          <input type="hidden" name="select_college" value="1">
+          <div class="mb-2">
+            <select name="college_id" class="form-select" required>
+              <option value="">-- choose college --</option>
+              {% for c in colleges %}
+                <option value="{{ c.id }}" {% if college_profile and c.id == college_profile.id %}selected{% endif %}>
+                  {{ c.name }} ({{ c.code }})
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="d-grid">
+            <button class="btn btn-primary" type="submit">Select</button>
+            <a class="btn btn-link mt-2" href="#create-college" onclick="document.getElementById('create-college').scrollIntoView();">Create new college</a>
+          </div>
+        </form>
+      {% else %}
+        <h6>No colleges yet</h6>
+        <p class="small text-muted">Create your first college and a college admin account now.</p>
+      {% endif %}
+    </div>
+
+    <div class="card p-3" id="create-college">
+      <h6>Create a college</h6>
+      <form method="post" action="{% url 'student_management_app:home' %}">
+        {% csrf_token %}
+        <input type="hidden" name="create_college" value="1">
+
+        <div class="mb-2">
+          <label class="form-label">College Name</label>
+          <input name="college_name" class="form-control" required>
+        </div>
+
+        <div class="mb-2">
+          <label class="form-label">College Code</label>
+          <input name="college_code" class="form-control" required>
+        </div>
+
+        <div class="mb-2">
+          <label class="form-label">College Tagline</label>
+          <input name="college_tagline" class="form-control">
+        </div>
+
+        <hr>
+
+        <div class="mb-2">
+          <label class="form-label">Admin Username</label>
+          <input name="admin_username" class="form-control" required>
+        </div>
+
+        <div class="mb-2">
+          <label class="form-label">Admin Email</label>
+          <input name="admin_email" type="email" class="form-control" required>
+        </div>
+
+        <div class="mb-2">
+          <label class="form-label">Admin Password</label>
+          <input name="admin_password" type="password" class="form-control" required>
+        </div>
+
+        <div class="d-grid mt-2">
+          <button class="btn btn-success" type="submit">Create College & Admin</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

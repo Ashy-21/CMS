@@ -1,0 +1,24 @@
+{% extends "student_management_app/base.html" %}
+{% block content %}
+<h3>Enter Student Result</h3>
+<form method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button class="btn btn-primary">Save Result</button>
+</form>
+
+<h5 class="mt-4">Recent Results</h5>
+<table class="table table-sm">
+  <tr><th>Student</th><th>Subject</th><th>Marks</th><th>Grade</th></tr>
+  {% for r in form.instance.__class__.objects.all().order_by('-created_at')|slice:":10" %}
+  <tr>
+    <td>{{ r.student.admin.username }}</td>
+    <td>{{ r.subject_name }}</td>
+    <td>{{ r.marks }}</td>
+    <td>{{ r.grade }}</td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="4">No results yet</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

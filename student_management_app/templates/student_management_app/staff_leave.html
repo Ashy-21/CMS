@@ -1,0 +1,23 @@
+{% extends "student_management_app/base.html" %}
+{% block content %}
+<h3>Apply for Leave</h3>
+<form method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button class="btn btn-primary">Apply</button>
+</form>
+
+<h5 class="mt-4">Your Leave Requests</h5>
+<table class="table table-striped">
+  <tr><th>Date</th><th>Message</th><th>Status</th></tr>
+  {% for leave in leaves %}
+  <tr>
+    <td>{{ leave.date }}</td>
+    <td>{{ leave.message }}</td>
+    <td>{{ leave.status|yesno:"Approved,Pending" }}</td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="3">No leave requests</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

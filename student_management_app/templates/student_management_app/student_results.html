@@ -1,0 +1,16 @@
+{% extends "student_management_app/base.html" %}
+{% block content %}
+<h3>Your Results</h3>
+<table class="table table-striped">
+  <tr><th>Subject</th><th>Marks</th><th>Grade</th></tr>
+  {% for r in results %}
+  <tr>
+    <td>{{ r.subject_name }}</td>
+    <td>{{ r.marks }}</td>
+    <td>{{ r.grade }}</td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="3">No results uploaded yet.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

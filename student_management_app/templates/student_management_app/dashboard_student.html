@@ -1,0 +1,109 @@
+{% extends "student_management_app/base.html" %}
+{% load static %}
+{% block title %}Student Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-md-4">
+    <div class="card p-3">
+      <div class="text-center">
+        {% if student_profile.profile_image %}
+          <img src="{{ student_profile.profile_image.url }}" class="rounded-circle mb-3" style="width:120px;height:120px;object-fit:cover;">
+        {% else %}
+          <img src="{% static 'student_management_app/default-user.png' %}" class="rounded-circle mb-3" style="width:120px;height:120px;object-fit:cover;">
+        {% endif %}
+      </div>
+      <h5 class="text-center">{{ student_profile.admin.get_full_name|default:student_profile.admin.username }}</h5>
+      <p class="text-muted text-center">{{ student_profile.admin.email }}</p>
+
+      <ul class="list-group list-group-flush mt-3">
+        <li class="list-group-item"><strong>Student ID:</strong> {{ student_profile.student_id|default:"-" }}</li>
+        <li class="list-group-item"><strong>Roll No:</strong> {{ student_profile.roll_no|default:"-" }}</li>
+
+        <li class="list-group-item">
+          <strong>Department:</strong>
+          {% if student_profile.department %}
+            {{ student_profile.department.name }}
+          {% else %}
+            -
+          {% endif %}
+        </li>
+
+        <li class="list-group-item">
+          <strong>Course:</strong>
+          {% if student_profile.course %}
+            {{ student_profile.course.name }}
+          {% else %}
+            -
+          {% endif %}
+        </li>
+
+        <li class="list-group-item">
+          <strong>Year / Sem:</strong>
+          {% if student_profile.year %}
+            {{ student_profile.year.name }}
+          {% else %}
+            -
+          {% endif %}
+           /
+          {% if student_profile.semester %}
+            {{ student_profile.semester.name }}
+          {% else %}
+            -
+          {% endif %}
+        </li>
+
+        <li class="list-group-item"><strong>Phone:</strong> {{ student_profile.phone|default:"-" }}</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="col-md-8">
+    <div class="card p-3 mb-3">
+      <h5>Attendance</h5>
+      <div class="row">
+        <div class="col">
+          <h6 class="mb-0">Present</h6>
+          <p class="display-6">{{ present }}</p>
+        </div>
+        <div class="col">
+          <h6 class="mb-0">Total</h6>
+          <p class="display-6">{{ total_attendance }}</p>
+        </div>
+        <div class="col">
+          <h6 class="mb-0">Percentage</h6>
+          <p class="display-6">{{ attendance_percent }}%</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card p-3">
+      <h5>Results</h5>
+      {% if results %}
+        <div class="table-responsive">
+          <table class="table table-sm table-striped">
+            <thead>
+              <tr>
+                <th>Subject</th>
+                <th>Marks</th>
+                <th>Grade</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in results %}
+                <tr>
+                  <td>{{ r.subject_name }}</td>
+                  <td>{{ r.marks }}</td>
+                  <td>{{ r.grade|default:"-" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-muted">No results available.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

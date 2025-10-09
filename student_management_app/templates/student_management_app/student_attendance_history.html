@@ -1,0 +1,18 @@
+{% extends "student_management_app/base.html" %}
+{% block content %}
+<h3>Attendance History</h3>
+
+<table class="table">
+  <tr><th>Course</th><th>Present</th><th>Total</th><th>Percent</th></tr>
+  {% for course, s in stats.items %}
+  <tr>
+    <td>{{ course }}</td>
+    <td>{{ s.present }}</td>
+    <td>{{ s.total }}</td>
+    <td>{{ s.percent|floatformat:2 }}%</td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="4">No attendance records found.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "student_management_app/base.html" %}
+{% block content %}
+<h3>Your Feedback</h3>
+<form method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button class="btn btn-primary">Submit Feedback</button>
+</form>
+
+<h5 class="mt-3">Past Feedback</h5>
+<ul class="list-group mt-2">
+  {% for f in feedbacks %}
+  <li class="list-group-item">
+    <div><small class="text-muted">{{ f.created_at }}</small></div>
+    <div>{{ f.feedback }}</div>
+    <div class="mt-1"><strong>Reply:</strong> {{ f.reply|default:"(no reply yet)" }}</div>
+  </li>
+  {% empty %}
+  <li class="list-group-item">No feedback sent yet.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

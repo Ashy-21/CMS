@@ -1,0 +1,38 @@
+{% extends "student_management_app/base.html" %}
+{% block content %}
+<h3>HOD - Pending Leaves</h3>
+
+<h5 class="mt-3">Staff Leaves</h5>
+<table class="table">
+  <tr><th>Staff</th><th>Date</th><th>Message</th><th>Action</th></tr>
+  {% for l in pending_staff_leaves %}
+  <tr>
+    <td>{{ l.staff.admin.username }}</td>
+    <td>{{ l.date }}</td>
+    <td>{{ l.message }}</td>
+    <td>
+      <a class="btn btn-sm btn-primary" href="{% url 'student_management_app:hod_process_staff_leave' l.id %}">Process</a>
+    </td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="4">No pending staff leaves</td></tr>
+  {% endfor %}
+</table>
+
+<h5 class="mt-3">Student Leaves</h5>
+<table class="table">
+  <tr><th>Student</th><th>Date</th><th>Message</th><th>Action</th></tr>
+  {% for l in pending_student_leaves %}
+  <tr>
+    <td>{{ l.student.admin.username }}</td>
+    <td>{{ l.date }}</td>
+    <td>{{ l.message }}</td>
+    <td>
+      <a class="btn btn-sm btn-primary" href="{% url 'student_management_app:hod_process_student_leave' l.id %}">Process</a>
+    </td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="4">No pending student leaves</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}
