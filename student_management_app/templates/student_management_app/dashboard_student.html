@@ -5,10 +5,10 @@
 {% block content %}
 <div class="row">
   <div class="col-md-4">
-    <div class="card p-3">
+    <div class="card p-3 mb-3">
       <div class="text-center">
-        {% if student_profile.profile_image %}
-          <img src="{{ student_profile.profile_image.url }}" class="rounded-circle mb-3" style="width:120px;height:120px;object-fit:cover;">
+        {% if student_profile.profile_pic %}
+          <img src="{{ student_profile.profile_pic.url }}" class="rounded-circle mb-3" style="width:120px;height:120px;object-fit:cover;">
         {% else %}
           <img src="{% static 'student_management_app/default-user.png' %}" class="rounded-circle mb-3" style="width:120px;height:120px;object-fit:cover;">
         {% endif %}
@@ -19,40 +19,9 @@
       <ul class="list-group list-group-flush mt-3">
         <li class="list-group-item"><strong>Student ID:</strong> {{ student_profile.student_id|default:"-" }}</li>
         <li class="list-group-item"><strong>Roll No:</strong> {{ student_profile.roll_no|default:"-" }}</li>
-
-        <li class="list-group-item">
-          <strong>Department:</strong>
-          {% if student_profile.department %}
-            {{ student_profile.department.name }}
-          {% else %}
-            -
-          {% endif %}
-        </li>
-
-        <li class="list-group-item">
-          <strong>Course:</strong>
-          {% if student_profile.course %}
-            {{ student_profile.course.name }}
-          {% else %}
-            -
-          {% endif %}
-        </li>
-
-        <li class="list-group-item">
-          <strong>Year / Sem:</strong>
-          {% if student_profile.year %}
-            {{ student_profile.year.name }}
-          {% else %}
-            -
-          {% endif %}
-           /
-          {% if student_profile.semester %}
-            {{ student_profile.semester.name }}
-          {% else %}
-            -
-          {% endif %}
-        </li>
-
+        <li class="list-group-item"><strong>Department:</strong> {{ student_profile.department.name|default:"-" }}</li>
+        <li class="list-group-item"><strong>Course:</strong> {{ student_profile.course.name|default:"-" }}</li>
+        <li class="list-group-item"><strong>Year / Sem:</strong> {{ student_profile.year.name|default:"-" }} / {{ student_profile.semester.name|default:"-" }}</li>
         <li class="list-group-item"><strong>Phone:</strong> {{ student_profile.phone|default:"-" }}</li>
       </ul>
     </div>
@@ -60,50 +29,134 @@
 
   <div class="col-md-8">
     <div class="card p-3 mb-3">
-      <h5>Attendance</h5>
-      <div class="row">
-        <div class="col">
-          <h6 class="mb-0">Present</h6>
-          <p class="display-6">{{ present }}</p>
-        </div>
-        <div class="col">
-          <h6 class="mb-0">Total</h6>
-          <p class="display-6">{{ total_attendance }}</p>
-        </div>
-        <div class="col">
-          <h6 class="mb-0">Percentage</h6>
-          <p class="display-6">{{ attendance_percent }}%</p>
+      <h5>Subjects & Results</h5>
+      <p class="text-muted small">Click a subject to view marks and attendance charts</p>
+
+      <div class="mb-3">
+        {% if results %}
+          {% for r in results %}
+            <button class="btn btn-outline-primary btn-sm subject-btn mb-2 me-2" data-student="{{ student_profile.id }}" data-result="{{ r.id }}">{{ r.subject_name }}</button>
+          {% endfor %}
+        {% else %}
+          <p class="text-muted">No results available yet.</p>
+        {% endif %}
+      </div>
+
+      <div id="subject-area" style="display:none;">
+        <h6 id="subject-title"></h6>
+
+        <div class="row">
+          <div class="col-md-6">
+            <h6>Marks</h6>
+            <table class="table table-sm" id="marks-table">
+              <thead><tr><th>Subject</th><th>Marks</th><th>Grade</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+
+          <div class="col-md-6">
+            <h6>Attendance</h6>
+            <canvas id="attendanceChart" style="max-height:260px;"></canvas>
+            <ul class="list-group list-group-flush mt-2" id="attendance-list"></ul>
+          </div>
         </div>
       </div>
     </div>
 
     <div class="card p-3">
-      <h5>Results</h5>
-      {% if results %}
-        <div class="table-responsive">
-          <table class="table table-sm table-striped">
-            <thead>
-              <tr>
-                <th>Subject</th>
-                <th>Marks</th>
-                <th>Grade</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for r in results %}
-                <tr>
-                  <td>{{ r.subject_name }}</td>
-                  <td>{{ r.marks }}</td>
-                  <td>{{ r.grade|default:"-" }}</td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      {% else %}
-        <div class="text-muted">No results available.</div>
-      {% endif %}
+      <h5>Overview</h5>
+      <p class="small text-muted">Present: <strong>{{ present }}</strong> / {{ total_attendance }} — {{ attendance_percent }}%</p>
     </div>
   </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function(){
+    const subjectButtons = document.querySelectorAll('.subject-btn');
+    const subjectArea = document.getElementById('subject-area');
+    const subjectTitle = document.getElementById('subject-title');
+    const marksTableBody = document.querySelector('#marks-table tbody');
+    const attendanceList = document.getElementById('attendance-list');
+    let attendanceChart = null;
+
+    function fetchSubjectData(studentId, resultId){
+      const url = "{% url 'student_management_app:api_student_subject_data' 0 0 %}";
+      const realUrl = url.replace('/0/0/', '/' + studentId + '/' + resultId + '/');
+      fetch(realUrl, {credentials: 'same-origin'})
+        .then(r => r.json())
+        .then(data => {
+          if (data.error){
+            alert(data.error);
+            return;
+          }
+          marksTableBody.innerHTML = '';
+          const m = data.marks;
+          const subject = m.subject || 'Subject';
+          subjectTitle.innerText = subject;
+          const tr = document.createElement('tr');
+          const marksCell = document.createElement('td');
+          marksCell.innerText = subject;
+          const markVal = document.createElement('td');
+          markVal.innerText = (m.marks !== null) ? m.marks : '-';
+          const gradeCell = document.createElement('td');
+          gradeCell.innerText = m.grade || '-';
+          tr.appendChild(marksCell);
+          tr.appendChild(markVal);
+          tr.appendChild(gradeCell);
+          marksTableBody.appendChild(tr);
+
+          attendanceList.innerHTML = '';
+          const labels = [];
+          const presentCounts = [];
+          const absentCounts = [];
+          data.attendance.forEach(function(a){
+            const li = document.createElement('li');
+            li.className = 'list-group-item small';
+            li.innerHTML = `<strong>${a.course}</strong> — ${a.present}/${a.total} (${a.percent}%)`;
+            attendanceList.appendChild(li);
+
+            labels.push(a.course);
+            presentCounts.push(a.present);
+            absentCounts.push(a.total - a.present);
+          });
+
+          const ctx = document.getElementById('attendanceChart').getContext('2d');
+          if (attendanceChart) {
+            attendanceChart.destroy();
+          }
+          attendanceChart = new Chart(ctx, {
+            type: 'pie',
+            data: {
+              labels: labels.length ? labels : ['No data'],
+              datasets: [{
+                label: 'Present vs Absent (first course)',
+                data: labels.length ? [presentCounts[0] || 0, absentCounts[0] || 0] : [1],
+              }]
+            },
+            options: {
+              plugins: {
+                legend: { position: 'bottom' }
+              }
+            }
+          });
+
+          subjectArea.style.display = 'block';
+        })
+        .catch(err => {
+          console.error(err);
+          alert('Failed to load subject data.');
+        });
+    }
+
+    subjectButtons.forEach(function(btn){
+      btn.addEventListener('click', function(){
+        const studentId = this.getAttribute('data-student');
+        const resultId = this.getAttribute('data-result');
+        fetchSubjectData(studentId, resultId);
+      });
+    });
+  });
+</script>
 {% endblock %}

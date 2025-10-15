@@ -1,0 +1,65 @@
+{% extends "student_management_app/base.html" %}
+{% block title %}HOD - Leave Requests{% endblock %}
+{% block content %}
+<div class="card p-3">
+  <h5>Pending Leave Requests</h5>
+  {% if leaves %}
+    <ul class="list-group">
+      {% for l in leaves %}
+        <li class="list-group-item d-flex justify-content-between align-items-start">
+          <div>
+            <strong>{{ l.staff.admin.get_full_name }}</strong> — {{ l.date }}<br>
+            <small class="text-muted">{{ l.message|truncatechars:120 }}</small>
+            <div class="mt-2"><small>Applied: {{ l.date_applied }}</small></div>
+            <div class="mt-2"><small>Reply: <span id="reply-{{ l.pk }}">{{ l.hod_reply|default:"-" }}</span></small></div>
+          </div>
+          <div class="text-end">
+            <button class="btn btn-success btn-sm me-1 hod-accept" data-id="{{ l.pk }}">Accept</button>
+            <button class="btn btn-danger btn-sm me-1 hod-reject" data-id="{{ l.pk }}">Reject</button>
+            <button class="btn btn-outline-secondary btn-sm hod-reply" data-id="{{ l.pk }}">Reply</button>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="text-muted">No pending leaves.</p>
+  {% endif %}
+</div>
+
+<script>
+document.querySelectorAll('.hod-accept, .hod-reject, .hod-reply').forEach(btn=>{
+  btn.addEventListener('click', async ()=>{
+    const id = btn.dataset.id;
+    let action = 'accept';
+    if (btn.classList.contains('hod-reject')) action = 'reject';
+    let reply = '';
+    if (btn.classList.contains('hod-reply')) {
+      reply = prompt("Write a reply (optional):");
+      if (reply === null) return;
+      action = 'accept';
+    } else {
+      reply = prompt("Optional reply message:");
+      if (reply === null) reply = '';
+    }
+    const urlTemplate = "{% url 'student_management_app:hod_process_leave_ajax' 0 %}";
+    const postUrl = urlTemplate.replace('/0/', `/${id}/`);
+    const form = new URLSearchParams();
+    form.append('action', action);
+    form.append('reply', reply);
+    const res = await fetch(postUrl, {
+      method: 'POST',
+      headers: {'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/x-www-form-urlencoded'},
+      body: form.toString(),
+      credentials: 'same-origin'
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      alert('Error: ' + (data.error || 'unknown'));
+    } else {
+      alert('Done: ' + data.status);
+      document.getElementById('reply-' + id).innerText = data.reply || '-';
+    }
+  });
+});
+</script>
+{% endblock %}

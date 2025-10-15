@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 
+
 class College(models.Model):
     name = models.CharField(max_length=255, unique=True)
     code = models.CharField(max_length=64, unique=True)
@@ -24,7 +25,6 @@ class CustomUser(AbstractUser):
     )
     user_type = models.PositiveSmallIntegerField(choices=USER_TYPE_CHOICES, default=STUDENT)
 
-    # optional link from user -> their college (for college admins and scoped users)
     college = models.ForeignKey(College, null=True, blank=True, on_delete=models.SET_NULL, related_name='users')
 
     def __str__(self):
@@ -44,7 +44,7 @@ class Department(models.Model):
 
 
 class Semester(models.Model):
-    name = models.CharField(max_length=50)   # e.g., "Year 1", "Semester 1"
+    name = models.CharField(max_length=50)
     order = models.PositiveSmallIntegerField(default=1)
     college = models.ForeignKey(College, null=True, blank=True, on_delete=models.CASCADE, related_name='semesters')
 
@@ -137,7 +137,7 @@ class Attendance(models.Model):
 class AttendanceReport(models.Model):
     student = models.ForeignKey(Students, on_delete=models.CASCADE, related_name='attendance_reports')
     attendance = models.ForeignKey(Attendance, on_delete=models.CASCADE, related_name='reports')
-    status = models.BooleanField(default=False)  # True = Present
+    status = models.BooleanField(default=False)
     college = models.ForeignKey(College, null=True, blank=True, on_delete=models.SET_NULL, related_name='attendance_reports')
 
     def __str__(self):
@@ -148,7 +148,7 @@ class LeaveReportStaff(models.Model):
     staff = models.ForeignKey(Staffs, on_delete=models.CASCADE, related_name='leaves')
     date = models.DateField()
     message = models.TextField()
-    status = models.BooleanField(default=False)  # Approved?
+    status = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.staff.admin.username} - {self.date}"

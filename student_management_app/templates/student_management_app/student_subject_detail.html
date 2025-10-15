@@ -1,0 +1,66 @@
+{% extends "student_management_app/base.html" %}
+{% load static %}
+{% block title %}{{ result.subject_name }}{% endblock %}
+{% block content %}
+<div class="card p-3">
+  <h5>{{ result.subject_name }}</h5>
+  <p class="small text-muted">Grade: {{ result.grade|default:"-" }}, Marks: {{ result.marks|default:"-" }}</p>
+
+  <div id="subject-area">
+    <div class="row">
+      <div class="col-md-6">
+        <h6>Marks</h6>
+        <table class="table table-sm" id="marks-table">
+          <thead><tr><th>Subject</th><th>Marks</th><th>Grade</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="col-md-6">
+        <h6>Attendance</h6>
+        <canvas id="attendanceChart" style="max-height:260px;"></canvas>
+        <ul class="list-group list-group-flush mt-2" id="attendance-list"></ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  (function(){
+    const studentId = "{{ student_profile.id }}";
+    const resultId = "{{ result.id }}";
+    const url = "{% url 'student_management_app:api_student_subject_data' student_profile.id result.id %}";
+    fetch(url, {credentials:'same-origin'}).then(r => r.json()).then(data => {
+      if (data.error) { alert(data.error); return; }
+      const tbody = document.querySelector('#marks-table tbody');
+      tbody.innerHTML = '';
+      const m = data.marks;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${m.subject}</td><td>${m.marks !== null ? m.marks : '-'}</td><td>${m.grade || '-'}</td>`;
+      tbody.appendChild(tr);
+
+      const attendanceList = document.getElementById('attendance-list');
+      attendanceList.innerHTML = '';
+      data.attendance.forEach(function(a){
+        const li = document.createElement('li');
+        li.className = 'list-group-item small';
+        li.innerHTML = `<strong>${a.course}</strong> — ${a.present}/${a.total} (${a.percent}%)`;
+        attendanceList.appendChild(li);
+      });
+
+      const ctx = document.getElementById('attendanceChart').getContext('2d');
+      if (data.attendance.length) {
+        const a = data.attendance[0];
+        new Chart(ctx, {
+          type: 'pie',
+          data: {
+            labels: ['Present','Absent'],
+            datasets: [{ data: [a.present, a.total - a.present] }]
+          },
+          options: { plugins: { legend: { position: 'bottom' } } }
+        });
+      }
+    });
+  })();
+</script>
+{% endblock %}

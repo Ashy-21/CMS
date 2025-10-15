@@ -4,6 +4,7 @@ from .models import (
     FeedbackStudent, Department, Semester
 )
 
+
 class LeaveForm(forms.ModelForm):
     class Meta:
         model = LeaveReportStaff
@@ -32,7 +33,6 @@ class StudentFeedbackForm(forms.ModelForm):
         model = FeedbackStudent
         fields = ['feedback']
 
-# Registration forms (used by registration view)
 class StaffRegistrationForm(forms.Form):
     username = forms.CharField()
     email = forms.EmailField()

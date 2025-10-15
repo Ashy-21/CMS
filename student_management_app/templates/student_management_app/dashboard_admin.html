@@ -1,60 +1,195 @@
 {% extends "student_management_app/base.html" %}
-{% block title %}HOD Dashboard{% endblock %}
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block extra_head %}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    .chart-card { min-height: 220px; }
+    .chart-canvas { width: 100% !important; height: 200px !important; display:block; }
+    @media (max-width: 767px) {
+      .chart-canvas { height: 180px !important; }
+    }
+    .table-preview { max-height: 300px; overflow: auto; }
+  </style>
+{% endblock %}
+
 {% block content %}
-<div class="row">
+<div class="row mb-3">
+  <div class="col-12 d-flex justify-content-between align-items-center">
+    <div>
+      {% if college_profile %}
+        <h3 class="mb-0">{{ college_profile.name }}</h3>
+        <small class="text-muted">{{ college_profile.tagline }}</small>
+      {% else %}
+        <h3 class="mb-0">College Admin</h3>
+      {% endif %}
+    </div>
+    <div>
+      <a class="btn btn-outline-secondary" href="{% url 'student_management_app:logout' %}">Logout</a>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
   <div class="col-md-4">
     <div class="card p-3">
-      <h5>
-        {% if college_profile %}
-          {{ college_profile.name }}
-        {% else %}
-          College Admin
-        {% endif %}
-      </h5>
-      <p class="text-muted">
-        {% if college_profile %}{{ college_profile.tagline }}{% endif %}
-      </p>
-      <ul class="list-group mt-2">
-        <li class="list-group-item"><strong>Total Students:</strong> {{ total_students }}</li>
-        <li class="list-group-item"><strong>Total Staff:</strong> {{ total_staffs }}</li>
-        <li class="list-group-item"><strong>Total Courses:</strong> {{ total_courses }}</li>
-      </ul>
+      <h6>Total Students</h6>
+      <div class="display-6">{{ total_students }}</div>
     </div>
-    <div class="card p-3 mt-3">
-      <a href="/admin/" class="btn btn-primary w-100">Open Django Admin</a>
+  </div>
+  <div class="col-md-4">
+    <div class="card p-3">
+      <h6>Total Staff</h6>
+      <div class="display-6">{{ total_staffs }}</div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card p-3">
+      <h6>Total Courses</h6>
+      <div class="display-6">{{ total_courses }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="row mt-4 g-3">
+  <div class="col-md-6">
+    <div class="card p-3 chart-card">
+      <h6>Students by Department</h6>
+      <canvas id="studentsChart" class="chart-canvas"></canvas>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card p-3 chart-card">
+      <h6>Staff by Department</h6>
+      <canvas id="staffsChart" class="chart-canvas"></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="row mt-4">
+  <div class="col-md-6">
+    <div class="card p-3">
+      <h6 class="mb-2">Students (preview)</h6>
+      {% if students_list %}
+        <div class="table-responsive table-preview">
+          <table class="table table-sm table-hover">
+            <thead class="table-light"><tr><th>ID</th><th>Name</th><th>Course</th><th>Dept</th></tr></thead>
+            <tbody>
+              {% for s in students_list %}
+                <tr>
+                  <td>{{ s.student_id }}</td>
+                  <td>{{ s.admin.username }}</td>
+                  <td>{{ s.course.name|default:"-" }}</td>
+                  <td>{{ s.department.name|default:"-" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-muted">No students to show.</div>
+      {% endif %}
     </div>
   </div>
 
-  <div class="col-md-8">
+  <div class="col-md-6">
     <div class="card p-3">
-      <h5>Pending Staff Leaves</h5>
-      {% if pending_staff_leaves %}
-        <ul class="list-group">
-          {% for l in pending_staff_leaves %}
-            <li class="list-group-item">
-              {{ l.staff.admin.username }} — {{ l.date }} — {{ l.message|truncatechars:120 }}
-            </li>
-          {% endfor %}
-        </ul>
+      <h6 class="mb-2">Staff (preview)</h6>
+      {% if staffs_list %}
+        <div class="table-responsive table-preview">
+          <table class="table table-sm table-hover">
+            <thead class="table-light"><tr><th>Emp ID</th><th>Name</th><th>Dept</th></tr></thead>
+            <tbody>
+              {% for st in staffs_list %}
+                <tr>
+                  <td>{{ st.employee_id }}</td>
+                  <td>{{ st.admin.username }}</td>
+                  <td>{{ st.department.name|default:"-" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       {% else %}
-        <p class="text-muted">No pending staff leaves.</p>
-      {% endif %}
-    </div>
-
-    <div class="card p-3 mt-3">
-      <h5>Pending Student Leaves</h5>
-      {% if pending_student_leaves %}
-        <ul class="list-group">
-          {% for l in pending_student_leaves %}
-            <li class="list-group-item">
-              {{ l.student.admin.username }} — {{ l.date }} — {{ l.message|truncatechars:120 }}
-            </li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        <p class="text-muted">No pending student leaves.</p>
+        <div class="text-muted">No staffs to show.</div>
       {% endif %}
     </div>
   </div>
 </div>
+
+<div class="row mt-3">
+  <div class="col-md-12">
+    {% if pending_staff_leaves %}
+      <div class="card p-3 mb-3">
+        <h6>Pending Staff Leaves</h6>
+        <ul class="list-unstyled mb-0">
+          {% for leave in pending_staff_leaves %}
+            <li>{{ leave.staff.admin.username }} — {{ leave.date }} — {{ leave.reason|truncatechars:80 }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% else %}
+      <div class="text-muted mb-3">No pending staff leaves.</div>
+    {% endif %}
+
+    {% if pending_student_leaves %}
+      <div class="card p-3">
+        <h6>Pending Student Leaves</h6>
+        <ul class="list-unstyled mb-0">
+          {% for leave in pending_student_leaves %}
+            <li>{{ leave.student.admin.username }} — {{ leave.date }} — {{ leave.reason|truncatechars:80 }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% else %}
+      <div class="text-muted">No pending student leaves.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  const studentsLabels = {{ students_chart_labels|default:"[]" }};
+  const studentsValues = {{ students_chart_values|default:"[]" }};
+
+  (function () {
+    const ctx = document.getElementById('studentsChart');
+    if (!ctx) return;
+    new Chart(ctx, {
+      type: 'pie',
+      data: {
+        labels: studentsLabels,
+        datasets: [{
+          data: studentsValues,
+        }]
+      },
+      options: {
+        plugins: { legend: { position: 'bottom' } },
+        maintainAspectRatio: false,
+      }
+    });
+  })();
+
+  const staffsLabels = {{ staffs_chart_labels|default:"[]" }};
+  const staffsValues = {{ staffs_chart_values|default:"[]" }};
+
+  (function () {
+    const ctx2 = document.getElementById('staffsChart');
+    if (!ctx2) return;
+    new Chart(ctx2, {
+      type: 'pie',
+      data: {
+        labels: staffsLabels,
+        datasets: [{
+          data: staffsValues,
+        }]
+      },
+      options: {
+        plugins: { legend: { position: 'bottom' } },
+        maintainAspectRatio: false,
+      }
+    });
+  })();
+</script>
 {% endblock %}

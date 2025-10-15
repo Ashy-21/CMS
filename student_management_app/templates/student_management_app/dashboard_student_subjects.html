@@ -1,0 +1,110 @@
+{% extends "student_management_app/base.html" %}
+{% block title %}Student Dashboard{% endblock %}
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-md-4">
+    <div class="card p-3">
+      <h5>{{ student.admin.get_full_name|default:student.admin.username }}</h5>
+      <p class="text-muted">{{ student.admin.email }}</p>
+      <ul class="list-group list-group-flush mt-2">
+        <li class="list-group-item"><strong>ID:</strong> {{ student.student_id|default:"-" }}</li>
+        <li class="list-group-item"><strong>Course:</strong> {{ student.course.name if student.course else "-" }}</li>
+        <li class="list-group-item"><strong>Year:</strong> {{ student.year.name if student.year else "-" }}</li>
+        <li class="list-group-item"><strong>Semester:</strong> {{ student.semester.name if student.semester else "-" }}</li>
+      </ul>
+    </div>
+
+    <div class="card mt-3 p-3">
+      <h6>Subjects</h6>
+      <div class="d-flex flex-wrap gap-2">
+        {% for sub in subjects %}
+          <button class="btn btn-outline-primary btn-sm subject-btn" data-subject-id="{{ sub.pk }}">{{ sub.name }}</button>
+        {% empty %}
+          <p class="text-muted">No subjects found.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-8">
+    <div id="subject-panel" class="card p-3">
+      <h5>Pick a subject to view marks & attendance</h5>
+      <div id="subject-content">
+        <p class="text-muted">Select a subject from the left to load marks and attendance charts.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const studentId = {{ student.pk }};
+document.querySelectorAll('.subject-btn').forEach(btn=>{
+  btn.addEventListener('click', async (e)=>{
+    const subjectId = btn.dataset.subjectId;
+    await loadSubjectData(subjectId);
+  });
+});
+
+async function loadSubjectData(subjectId) {
+  const url = "{% url 'student_management_app:student_subject_data' 0 0 %}";
+  const fetchUrl = url.replace('/0/0/', `/${studentId}/${subjectId}/`);
+  const res = await fetch(fetchUrl, {credentials: 'same-origin'});
+  if (!res.ok) {
+    document.getElementById('subject-content').innerHTML = '<div class="text-danger">Failed to load subject data.</div>';
+    return;
+  }
+  const data = await res.json();
+  renderSubjectPanel(data);
+}
+
+function renderSubjectPanel(data) {
+  const cont = document.getElementById('subject-content');
+  cont.innerHTML = `
+    <h5>${data.subject.name}</h5>
+    <div class="row">
+      <div class="col-md-6">
+        <h6>Marks</h6>
+        <canvas id="marksChart" height="200"></canvas>
+        <table class="table table-sm mt-2">
+          <thead><tr><th>#</th><th>Date</th><th>Marks</th></tr></thead>
+          <tbody>
+            ${data.marks.labels.map((lab, i)=>`<tr><td>${i+1}</td><td>${lab}</td><td>${data.marks.data[i] ?? '-'}</td></tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div class="col-md-6">
+        <h6>Attendance</h6>
+        <canvas id="attChart" height="200"></canvas>
+        <p class="mt-2">Present: ${data.attendance.present} / ${data.attendance.total} (Absent: ${data.attendance.absent})</p>
+      </div>
+    </div>
+  `;
+
+  const marksCtx = document.getElementById('marksChart');
+  if (window._marksChart) window._marksChart.destroy();
+  window._marksChart = new Chart(marksCtx, {
+    type: 'line',
+    data: {
+      labels: data.marks.labels,
+      datasets: [{ label: 'Marks', data: data.marks.data, fill: false, tension: 0.2 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+
+  const attCtx = document.getElementById('attChart');
+  if (window._attChart) window._attChart.destroy();
+  window._attChart = new Chart(attCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Present', 'Absent'],
+      datasets: [{ data: [data.attendance.present, data.attendance.absent] }]
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+}
+</script>
+{% endblock %}

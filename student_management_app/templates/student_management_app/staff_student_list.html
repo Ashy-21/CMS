@@ -1,0 +1,76 @@
+{% extends "student_management_app/base.html" %}
+{% block title %}Students for {{ subject.name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-12">
+    <div class="card p-3">
+      <h5>Students - {{ subject.name }}</h5>
+      <table class="table table-sm">
+        <thead><tr><th>#</th><th>Name</th><th>Roll</th><th>Marks</th><th>Attendance</th><th>Actions</th></tr></thead>
+        <tbody>
+          {% for s in students %}
+          <tr id="student-row-{{ s.pk }}">
+            <td>{{ forloop.counter }}</td>
+            <td>{{ s.admin.get_full_name|default:s.admin.username }}</td>
+            <td>{{ s.roll_no|default:"-" }}</td>
+            <td class="student-marks">{{ s|default_if_none:"-" }}</td>
+            <td class="student-att">--</td>
+            <td>
+              <button class="btn btn-sm btn-outline-primary mark-btn" data-student-id="{{ s.pk }}">Add Marks</button>
+              <button class="btn btn-sm btn-outline-secondary att-btn" data-student-id="{{ s.pk }}">Add Attendance</button>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="text-muted">No students found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="prompt-area" style="display:none;"></div>
+
+<script>
+const subjectId = {{ subject.pk }};
+document.querySelectorAll('.mark-btn').forEach(btn=>{
+  btn.addEventListener('click', async ()=>{
+    const studentId = btn.dataset.studentId;
+    const value = prompt("Enter marks (numeric):");
+    if (value === null) return;
+    await postUpdate(studentId, 'marks', value);
+  });
+});
+document.querySelectorAll('.att-btn').forEach(btn=>{
+  btn.addEventListener('click', async ()=>{
+    const studentId = btn.dataset.studentId;
+    const val = confirm("Mark as present? OK=Present, Cancel=Absent");
+    await postUpdate(studentId, 'attendance', val ? '1' : '0');
+  });
+});
+
+async function postUpdate(studentId, action, value) {
+  const urlTemplate = "{% url 'student_management_app:staff_update_record' 0 0 %}";
+  const postUrl = urlTemplate.replace('/0/0/', `/${studentId}/${subjectId}/`);
+  const form = new URLSearchParams();
+  form.append('action', action);
+  form.append('value', value);
+  const res = await fetch(postUrl, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCookie('csrftoken'),
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: form.toString(),
+    credentials: 'same-origin'
+  });
+  const data = await res.json();
+  if (!data.ok) {
+    alert('Update failed: ' + (data.error || 'unknown'));
+  } else {
+    alert('Update saved');
+  }
+}
+</script>
+{% endblock %}

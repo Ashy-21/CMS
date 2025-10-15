@@ -6,10 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{% if college_profile %}{{ college_profile.name }}{% else %}College CMS{% endif %}{% endblock %}</title>
 
-  <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 
-  <!-- site css -->
   <link href="{% static 'css/custom.css' %}" rel="stylesheet">
   {% block extra_head %}{% endblock %}
 </head>
@@ -62,8 +60,53 @@
   {% block content %}{% endblock %}
 </div>
 
-<!-- Bootstrap JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+{# Small CSRF helper for AJAX/fetch calls.
+   - Does not affect normal server-rendered forms that use {% csrf_token %}.
+   - Exposes getCookie(name) and csrfPost(url, data) helpers.
+   Remove this block if you don't want these helpers in base. #}
+<script>
+function getCookie(name) {
+  const nameEQ = name + "=";
+  const parts = document.cookie ? document.cookie.split(';') : [];
+  for (let i = 0; i < parts.length; i++) {
+    let c = parts[i].trim();
+    if (c.indexOf(nameEQ) === 0) return decodeURIComponent(c.substring(nameEQ.length));
+  }
+  return null;
+}
+window.getCookie = getCookie;
+window.CSRF_TOKEN = getCookie('csrftoken');
+
+async function csrfPost(url, dataObj) {
+  const token = getCookie('csrftoken');
+  let body;
+  let headers = {'X-CSRFToken': token};
+
+  if (dataObj instanceof FormData) {
+    body = dataObj;
+  } else {
+    body = new URLSearchParams();
+    for (const k in dataObj) {
+      if (Object.prototype.hasOwnProperty.call(dataObj, k)) {
+        body.append(k, dataObj[k]);
+      }
+    }
+    headers['Content-Type'] = 'application/x-www-form-urlencoded';
+  }
+
+  const res = await fetch(url, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: headers,
+    body: body
+  });
+  return res;
+}
+window.csrfPost = csrfPost;
+</script>
+
 {% block extra_js %}{% endblock %}
 </body>
 </html>

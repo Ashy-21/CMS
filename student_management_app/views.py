@@ -1,9 +1,14 @@
+# student_management_app/views.py
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout, get_user_model
 from django.contrib import messages
 from django.urls import reverse
 from django.http import HttpResponseRedirect
-
+from django.http import JsonResponse, HttpResponseForbidden
+from django.views.decorators.http import require_POST
+from django.db.models import Q, Count, F
+import json
+from django.utils.safestring import mark_safe
 from .forms import (
     LeaveForm, StudentLeaveForm, ResultForm, ResultEntryForm,
     StudentFeedbackForm, ApproveLeaveForm,
@@ -15,26 +20,18 @@ from .models import (
     AdminHOD, Staffs, Students, CustomUser, Course, SessionYear, College
 )
 
+
 User = get_user_model()
 
-
 def home(request):
-    """
-    Home page behaviour:
-    - If no college selected: show dropdown + create-college form (create includes creating a college admin)
-    - If a college is selected: show college landing with login/register links
-    """
-    # selected college from session (if any)
     selected_college = None
     college_id = request.session.get('selected_college_id')
     if college_id:
         selected_college = College.objects.filter(id=college_id).first()
 
-    # Always provide list of colleges so template can show a selector when colleges exist
     colleges = College.objects.all()
 
     if request.method == "POST":
-        # selecting an existing college
         if 'select_college' in request.POST:
             college_id = request.POST.get('college_id')
             if college_id:
@@ -42,7 +39,6 @@ def home(request):
                 messages.success(request, "Selected college updated.")
             return redirect('student_management_app:home')
 
-        # create new college + admin
         if 'create_college' in request.POST:
             name = request.POST.get('college_name', '').strip()
             code = request.POST.get('college_code', '').strip()
@@ -66,7 +62,6 @@ def home(request):
 
             college = College.objects.create(name=name, code=code, tagline=tagline)
 
-            # create college admin user (staff but we set user_type to HOD so they can access admin_home dashboard)
             admin_user = User.objects.create_user(
                 username=admin_username,
                 email=admin_email,
@@ -75,38 +70,58 @@ def home(request):
             admin_user.is_staff = True
             admin_user.is_active = True
             admin_user.is_superuser = False
-            # mark as HOD (so admin_home view recognizes them)
             try:
                 admin_user.user_type = CustomUser.HOD
             except Exception:
-                # safety if CustomUser isn't used for some reason - ignore
                 pass
             admin_user.college = college
             admin_user.save()
 
-            # create a Staffs record for the admin so admin can edit college objects (optional)
             Staffs.objects.create(admin=admin_user, college=college, employee_id=f"ADM-{college.code}")
 
             request.session['selected_college_id'] = college.id
             messages.success(request, f"College '{college.name}' created and admin '{admin_username}' created.")
             return redirect('student_management_app:home')
 
-    # GET (or after POST redirect) — render with colleges + selected_college context
     return render(request, 'student_management_app/home.html', {
         'colleges': colleges,
-        'college_profile': selected_college,   # keep name used elsewhere in templates
-        'college': selected_college,           # compatibility with templates that use 'college'
+        'college_profile': selected_college,
+        'college': selected_college,
     })
 
 
-
 def loginPage(request):
-    """Show login page"""
+    if request.method == "POST":
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            if not user.is_active:
+                messages.error(request, "Account disabled. Contact admin.")
+                return redirect('student_management_app:login')
+
+            login(request, user)
+            if user.is_superuser:
+                return redirect('student_management_app:admin_home')
+            if getattr(user, "user_type", None) == CustomUser.HOD:
+                return redirect('student_management_app:admin_home')
+            if getattr(user, "user_type", None) == CustomUser.STAFF:
+                return redirect('student_management_app:staff_home')
+            if getattr(user, "user_type", None) == CustomUser.STUDENT:
+                return redirect('student_management_app:student_home')
+            # fallback: staff -> staff_home, else home
+            if user.is_staff:
+                return redirect('student_management_app:staff_home')
+            return redirect('student_management_app:home')
+
+        messages.error(request, 'Invalid credentials')
+        return redirect('student_management_app:login')
+
+    # GET: show the page
     return render(request, 'student_management_app/login_page.html')
 
 
 def doLogin(request):
-    """Authenticate and redirect based on user_type"""
     if request.method != "POST":
         return redirect('student_management_app:login')
     username = request.POST.get('username')
@@ -118,7 +133,6 @@ def doLogin(request):
             return redirect('student_management_app:login')
 
         login(request, user)
-        # Redirect according to user_type. If superuser, send to admin_home
         if user.is_superuser:
             return redirect('student_management_app:admin_home')
         if getattr(user, "user_type", None) == CustomUser.HOD:
@@ -127,7 +141,6 @@ def doLogin(request):
             return redirect('student_management_app:staff_home')
         if getattr(user, "user_type", None) == CustomUser.STUDENT:
             return redirect('student_management_app:student_home')
-        # fallback: staff -> staff_home, else home
         if user.is_staff:
             return redirect('student_management_app:staff_home')
         return redirect('student_management_app:home')
@@ -142,10 +155,6 @@ def logout_user(request):
 
 
 def registration(request):
-    """
-    Registration page for student/staff/hod. Uses selected college from session if present.
-    """
-    # selected college from session (if any)
     selected_college = None
     college_id = request.session.get('selected_college_id')
     if college_id:
@@ -170,7 +179,6 @@ def registration(request):
         username = request.POST.get('username', '').strip()
         email = request.POST.get('email', '').strip()
         password = request.POST.get('password', '').strip()
-        # default to STUDENT if missing or non-int
         try:
             user_type = int(request.POST.get('user_type', CustomUser.STUDENT))
         except Exception:
@@ -187,7 +195,6 @@ def registration(request):
             messages.error(request, "Email already taken. Choose another.")
             return redirect('student_management_app:registration')
 
-        # Student
         if user_type == CustomUser.STUDENT:
             student_id = request.POST.get('student_id', '').strip()
             roll_no = request.POST.get('roll_no', '').strip()
@@ -229,7 +236,6 @@ def registration(request):
             messages.success(request, "Student registered successfully. Please login.")
             return redirect('student_management_app:login')
 
-        # Staff
         if user_type == CustomUser.STAFF:
             employee_id = request.POST.get('employee_id', '').strip()
             department_id = request.POST.get('department')
@@ -254,7 +260,6 @@ def registration(request):
             messages.success(request, "Staff registered successfully. Please login.")
             return redirect('student_management_app:login')
 
-        # HOD
         if user_type == CustomUser.HOD:
             hod_id = request.POST.get('hod_id', '').strip()
             department_id = request.POST.get('department')
@@ -278,7 +283,6 @@ def registration(request):
         messages.error(request, "Invalid role selected.")
         return redirect('student_management_app:registration')
 
-    # include User (CustomUser) in context so templates can reference constants if needed
     return render(request, 'student_management_app/registration.html', {
         'college': selected_college,
         'colleges': colleges,
@@ -287,18 +291,11 @@ def registration(request):
         'user_model': CustomUser,
     })
 
-
-# --- dashboards ---
-
 def admin_home(request):
-    """
-    HOD / College admin dashboard. Superuser sees site-wide summary.
-    """
     if not request.user.is_authenticated:
         messages.error(request, 'Login required')
         return redirect('student_management_app:login')
 
-    # Allow superuser or HOD users to view this dashboard
     if not (request.user.is_superuser or getattr(request.user, "user_type", None) == CustomUser.HOD):
         messages.error(request, 'Unauthorized')
         return redirect('student_management_app:login')
@@ -309,13 +306,36 @@ def admin_home(request):
         total_students = Students.objects.count()
         total_staffs = Staffs.objects.count()
         total_courses = Course.objects.count()
+        students_qs = Students.objects.select_related('admin', 'department', 'course')
+        staffs_qs = Staffs.objects.select_related('admin', 'department')
     else:
         total_students = Students.objects.filter(college=college).count()
         total_staffs = Staffs.objects.filter(college=college).count()
         total_courses = Course.objects.filter(college=college).count()
+        students_qs = Students.objects.filter(college=college).select_related('admin', 'department', 'course')
+        staffs_qs = Staffs.objects.filter(college=college).select_related('admin', 'department')
 
     pending_staff_leaves = LeaveReportStaff.objects.filter(staff__college=college, status=False) if college else LeaveReportStaff.objects.filter(status=False)
     pending_student_leaves = LeaveReportStudent.objects.filter(student__college=college, status=False) if college else LeaveReportStudent.objects.filter(status=False)
+
+    students_list = students_qs.order_by('student_id')[:200]
+    staffs_list = staffs_qs.order_by('employee_id')[:200]
+
+    students_by_dept_qs = students_qs.values(dept_name=F('department__name')).annotate(count=Count('id')).order_by('-count')
+    labels_students = []
+    values_students = []
+    for row in students_by_dept_qs:
+        label = row.get('dept_name') or "Unknown"
+        labels_students.append(label)
+        values_students.append(row.get('count', 0))
+
+    staffs_by_dept_qs = staffs_qs.values(dept_name=F('department__name')).annotate(count=Count('id')).order_by('-count')
+    labels_staffs = []
+    values_staffs = []
+    for row in staffs_by_dept_qs:
+        label = row.get('dept_name') or "Unknown"
+        labels_staffs.append(label)
+        values_staffs.append(row.get('count', 0))
 
     context = {
         'college_profile': college,
@@ -324,6 +344,12 @@ def admin_home(request):
         'total_courses': total_courses,
         'pending_staff_leaves': pending_staff_leaves,
         'pending_student_leaves': pending_student_leaves,
+        'students_list': students_list,
+        'staffs_list': staffs_list,
+        'students_chart_labels': mark_safe(json.dumps(labels_students)),
+        'students_chart_values': mark_safe(json.dumps(values_students)),
+        'staffs_chart_labels': mark_safe(json.dumps(labels_staffs)),
+        'staffs_chart_values': mark_safe(json.dumps(values_staffs)),
     }
     return render(request, 'student_management_app/dashboard_admin.html', context)
 
@@ -341,10 +367,18 @@ def staff_home(request):
 
     my_leaves = LeaveReportStaff.objects.filter(staff=staff_profile).order_by('-date')
 
+    college = request.user.college
+    students_preview = Students.objects.filter(college=college).select_related('admin', 'department', 'course', 'semester')[:50] if college else Students.objects.none()
+    courses = Course.objects.filter(college=college) if college else Course.objects.none()
+    semesters = Semester.objects.filter(college=college) if college else Semester.objects.none()
+
     context = {
         'staff_profile': staff_profile,
         'college_profile': request.user.college,
         'my_leaves': my_leaves,
+        'students_preview': students_preview,
+        'courses': courses,
+        'semesters': semesters,
     }
     return render(request, 'student_management_app/dashboard_staff.html', context)
 
@@ -376,14 +410,11 @@ def student_home(request):
     }
     return render(request, 'student_management_app/dashboard_student.html', context)
 
-
-# --- Staff: attendance page ---
 def staff_attendance(request):
     if not request.user.is_authenticated or getattr(request.user, "user_type", None) != CustomUser.STAFF:
         messages.error(request, 'Unauthorized')
         return redirect('student_management_app:login')
 
-    # limit courses/sessions to staff.college
     college = request.user.college
     courses = Course.objects.filter(college=college) if college else Course.objects.none()
     sessions = SessionYear.objects.filter(college=college) if college else SessionYear.objects.none()
@@ -407,8 +438,6 @@ def staff_attendance(request):
 
     return render(request, 'student_management_app/staff_attendance.html', {'courses': courses, 'sessions': sessions})
 
-
-# --- Staff leave ---
 def staff_leave(request):
     if not request.user.is_authenticated or getattr(request.user, "user_type", None) != CustomUser.STAFF:
         messages.error(request, 'Unauthorized')
@@ -434,8 +463,6 @@ def staff_leave(request):
     leaves = LeaveReportStaff.objects.filter(staff=staff)
     return render(request, 'student_management_app/staff_leave.html', {'form': form, 'leaves': leaves})
 
-
-# --- Student leave ---
 def student_leave(request):
     if not request.user.is_authenticated or getattr(request.user, "user_type", None) != CustomUser.STUDENT:
         messages.error(request, 'Unauthorized')
@@ -461,8 +488,6 @@ def student_leave(request):
     leaves = LeaveReportStudent.objects.filter(student=student)
     return render(request, 'student_management_app/student_leave.html', {'form': form, 'leaves': leaves})
 
-
-# --- Student results listing ---
 def student_results(request):
     if not request.user.is_authenticated or getattr(request.user, "user_type", None) != CustomUser.STUDENT:
         messages.error(request, 'Unauthorized')
@@ -470,14 +495,12 @@ def student_results(request):
     try:
         student = request.user.student_profile
     except Students.DoesNotExist:
-        messages.error(request, "Student profile not found.")
+        messages.error(request, 'Student profile not found.')
         return redirect('student_management_app:student_home')
 
     results = StudentResult.objects.filter(student=student)
     return render(request, 'student_management_app/student_results.html', {'results': results})
 
-
-# --- HOD leave requests ---
 def hod_leave_requests(request):
     if not request.user.is_authenticated or getattr(request.user, "user_type", None) != CustomUser.HOD:
         messages.error(request, "Unauthorized")
@@ -531,8 +554,6 @@ def hod_process_student_leave(request, leave_id):
     form = ApproveLeaveForm()
     return render(request, 'student_management_app/hod_process_leave.html', {'leave': leave, 'form': form})
 
-
-# --- Staff enter result ---
 def staff_enter_result(request):
     if not request.user.is_authenticated or getattr(request.user, "user_type", None) != CustomUser.STAFF:
         messages.error(request, 'Unauthorized')
@@ -542,7 +563,6 @@ def staff_enter_result(request):
         form = ResultEntryForm(request.POST)
         if form.is_valid():
             obj = form.save(commit=False)
-            # attach college from staff user if the model has college
             if hasattr(obj, 'college') and getattr(request.user, "college", None):
                 obj.college = request.user.college
             obj.save()
@@ -552,8 +572,6 @@ def staff_enter_result(request):
         form = ResultEntryForm()
     return render(request, 'student_management_app/staff_enter_result.html', {'form': form})
 
-
-# --- Student feedback ---
 def student_feedback(request):
     if not request.user.is_authenticated or getattr(request.user, "user_type", None) != CustomUser.STUDENT:
         messages.error(request, 'Unauthorized')
@@ -579,8 +597,6 @@ def student_feedback(request):
     feedbacks = FeedbackStudent.objects.filter(student=student).order_by('-created_at')
     return render(request, 'student_management_app/student_feedback.html', {'form': form, 'feedbacks': feedbacks})
 
-
-# --- Student attendance history ---
 def student_attendance_history(request):
     if not request.user.is_authenticated or getattr(request.user, "user_type", None) != CustomUser.STUDENT:
         messages.error(request, 'Unauthorized')
@@ -608,3 +624,142 @@ def student_attendance_history(request):
         v['percent'] = round((present / total * 100), 1) if total else 0
 
     return render(request, 'student_management_app/student_attendance_history.html', {'stats': stats})
+
+def student_subject_detail(request, student_id, result_id):
+    if not request.user.is_authenticated or getattr(request.user, "user_type", None) != CustomUser.STUDENT:
+        messages.error(request, 'Unauthorized')
+        return redirect('student_management_app:login')
+
+    try:
+        student_profile = request.user.student_profile
+    except Students.DoesNotExist:
+        messages.error(request, 'Student profile missing.')
+        return redirect('student_management_app:student_home')
+
+    if student_profile.id != student_id:
+        messages.error(request, 'Unauthorized access to student data.')
+        return redirect('student_management_app:student_home')
+
+    result = StudentResult.objects.filter(id=result_id, student=student_profile).first()
+    if not result:
+        messages.error(request, 'Result not found.')
+        return redirect('student_management_app:student_home')
+
+    return render(request, 'student_management_app/student_subject_detail.html', {
+        'student_profile': student_profile,
+        'result': result,
+    })
+
+
+def api_student_subject_data(request, student_id, result_id):
+    if not request.user.is_authenticated or getattr(request.user, "user_type", None) != CustomUser.STUDENT:
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+
+    try:
+        student_profile = request.user.student_profile
+    except Students.DoesNotExist:
+        return JsonResponse({'error': 'Student profile missing'}, status=404)
+
+    if student_profile.id != student_id:
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+
+    result = StudentResult.objects.filter(id=result_id, student=student_profile).first()
+    if not result:
+        return JsonResponse({'error': 'Result not found'}, status=404)
+
+    marks = {
+        'subject': getattr(result, 'subject_name', str(getattr(result, 'subject', 'Unknown'))),
+        'marks': float(result.marks) if getattr(result, 'marks', None) is not None else None,
+        'grade': getattr(result, 'grade', None),
+    }
+
+    reports = AttendanceReport.objects.filter(student=student_profile).select_related('attendance__course')
+    attendance_by_course = {}
+    for r in reports:
+        course_name = r.attendance.course.name if r.attendance and getattr(r.attendance, 'course', None) else 'Unknown'
+        if course_name not in attendance_by_course:
+            attendance_by_course[course_name] = {'present': 0, 'total': 0}
+        attendance_by_course[course_name]['total'] += 1
+        if r.status:
+            attendance_by_course[course_name]['present'] += 1
+
+    attendance_list = []
+    for course_name, v in attendance_by_course.items():
+        total = v['total']
+        present = v['present']
+        percent = round((present / total * 100), 1) if total else 0
+        attendance_list.append({
+            'course': course_name,
+            'present': present,
+            'total': total,
+            'percent': percent,
+        })
+
+    return JsonResponse({
+        'marks': marks,
+        'attendance': attendance_list,
+    })
+
+def staff_student_list(request):
+    if not request.user.is_authenticated or getattr(request.user, "user_type", None) != CustomUser.STAFF:
+        messages.error(request, 'Unauthorized')
+        return redirect('student_management_app:login')
+
+    college = request.user.college
+    courses = Course.objects.filter(college=college) if college else Course.objects.none()
+    semesters = Semester.objects.filter(college=college) if college else Semester.objects.none()
+
+    students = Students.objects.filter(college=college) if college else Students.objects.none()
+
+    selected_course_id = request.GET.get('course')
+    selected_sem_id = request.GET.get('semester')
+
+    if selected_course_id:
+        students = students.filter(course_id=selected_course_id)
+    if selected_sem_id:
+        students = students.filter(semester_id=selected_sem_id)
+
+    return render(request, 'student_management_app/staff_student_list.html', {
+        'students': students,
+        'courses': courses,
+        'semesters': semesters,
+        'selected_course_id': selected_course_id,
+        'selected_semester_id': selected_sem_id,
+    })
+
+
+@require_POST
+def staff_edit_attendance(request, attendance_report_id):
+    if not request.user.is_authenticated or getattr(request.user, "user_type", None) != CustomUser.STAFF:
+        return HttpResponseForbidden("Unauthorized")
+
+    ar = get_object_or_404(AttendanceReport, id=attendance_report_id)
+    if request.user.college and getattr(ar, 'college', None) != request.user.college:
+        return HttpResponseForbidden("Not allowed")
+
+    new_status = request.POST.get('status')
+    ar.status = True if new_status == '1' or new_status == 'true' or new_status == 'on' else False
+    ar.save()
+    return JsonResponse({'ok': True, 'status': ar.status})
+
+
+@require_POST
+def staff_edit_result(request, result_id):
+    if not request.user.is_authenticated or getattr(request.user, "user_type", None) != CustomUser.STAFF:
+        return HttpResponseForbidden("Unauthorized")
+
+    res = get_object_or_404(StudentResult, id=result_id)
+    if request.user.college and getattr(res, 'college', None) != request.user.college:
+        return HttpResponseForbidden("Not allowed")
+
+    marks = request.POST.get('marks')
+    grade = request.POST.get('grade')
+    try:
+        if marks is not None and marks != '':
+            res.marks = float(marks)
+        if grade is not None:
+            res.grade = grade
+        res.save()
+        return JsonResponse({'ok': True, 'marks': res.marks, 'grade': res.grade})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)

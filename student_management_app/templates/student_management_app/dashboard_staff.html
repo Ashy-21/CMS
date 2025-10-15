@@ -1,52 +1,155 @@
 {% extends "student_management_app/base.html" %}
 {% block title %}Staff Dashboard{% endblock %}
+
 {% block content %}
 <div class="row">
+  <div class="col-md-12 d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h3 class="mb-0">
+        {% if college_profile %}
+          {{ college_profile.name }}
+        {% else %}
+          Staff Dashboard
+        {% endif %}
+      </h3>
+      {% if college_profile %}
+        <small class="text-muted">{{ college_profile.tagline }}</small>
+      {% endif %}
+    </div>
+    <div>
+      <a class="btn btn-outline-secondary" href="{% url 'student_management_app:logout' %}">Logout</a>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
   <div class="col-md-4">
     <div class="card p-3">
-      <h5>{{ staff_profile.admin.get_full_name|default:staff_profile.admin.username }}</h5>
-      <p class="text-muted">{{ staff_profile.admin.email }}</p>
-      <ul class="list-group list-group-flush mt-2">
-        <li class="list-group-item"><strong>Employee ID:</strong> {{ staff_profile.employee_id|default:"-" }}</li>
-        <li class="list-group-item">
-          <strong>Department:</strong>
-          {% if staff_profile.department %}
-            {{ staff_profile.department.name }}
-          {% else %}
-            -
-          {% endif %}
-        </li>
-        <li class="list-group-item"><strong>Phone:</strong> {{ staff_profile.phone|default:"-" }}</li>
-        <li class="list-group-item"><strong>Address:</strong> {{ staff_profile.address|default:"-" }}</li>
-      </ul>
+      <h6 class="text-muted">Username</h6>
+      <div>{{ staff_profile.admin.username }}</div>
+      <h6 class="text-muted mt-2">Email</h6>
+      <div>{{ staff_profile.admin.email }}</div>
     </div>
   </div>
 
   <div class="col-md-8">
     <div class="card p-3">
-      <h5>My Leaves</h5>
+      <h5 class="mb-3">Profile</h5>
+      <div class="row">
+        <div class="col-md-6">
+          <p class="mb-1"><strong>Employee ID:</strong> {{ staff_profile.employee_id }}</p>
+          <p class="mb-1"><strong>Department:</strong>
+            {% if staff_profile.department %}
+              {{ staff_profile.department.name }}
+            {% else %}
+              -
+            {% endif %}
+          </p>
+        </div>
+        <div class="col-md-6">
+          <p class="mb-1"><strong>Phone:</strong> {{ staff_profile.phone|default:"-" }}</p>
+          <p class="mb-1"><strong>Address:</strong> {{ staff_profile.address|default:"-" }}</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card p-3 mt-3">
+      <h5 class="mb-3">My Leaves</h5>
+
+      {# leave apply form (posts to existing staff_leave view) #}
+      <form method="post" action="{% url 'student_management_app:staff_leave' %}">
+        {% csrf_token %}
+        <div class="row g-2">
+          <div class="col-md-4">
+            <label class="form-label">Date</label>
+            <input name="date" type="date" class="form-control" required>
+          </div>
+          <div class="col-md-8">
+            <label class="form-label">Reason / Message</label>
+            <input name="message" class="form-control" maxlength="500" required>
+          </div>
+        </div>
+        <div class="mt-2">
+          <button class="btn btn-primary">Apply Leave</button>
+        </div>
+      </form>
+
+      <hr>
+
       {% if my_leaves %}
         <ul class="list-group">
           {% for l in my_leaves %}
             <li class="list-group-item d-flex justify-content-between align-items-start">
               <div>
-                <div class="fw-bold">{{ l.date }}</div>
-                <div class="small text-truncate" style="max-width:60ch;">{{ l.message|truncatechars:120 }}</div>
+                <strong>{{ l.date }}</strong>
+                <div class="small text-muted">{{ l.message|truncatechars:100 }}</div>
               </div>
               <div class="text-end">
                 {% if l.status %}
-                  <span class="badge bg-success">Approved</span>
+                  <span class="badge bg-success">Granted</span>
                 {% else %}
                   <span class="badge bg-secondary">Pending</span>
+                {% endif %}
+                {% if l.reply %}
+                  <div class="small mt-1 text-muted">Reply: {{ l.reply|truncatechars:80 }}</div>
                 {% endif %}
               </div>
             </li>
           {% endfor %}
         </ul>
       {% else %}
-        <p class="text-muted">No leaves applied yet.</p>
+        <p class="text-muted mb-0">No leaves applied yet.</p>
       {% endif %}
     </div>
+
+    {# Students preview area (staff_home provides students_preview) #}
+    <div class="card p-3 mt-3">
+      <h5 class="mb-3">Students (preview)</h5>
+      {% if students_preview %}
+        <div class="table-responsive" style="max-height:300px; overflow:auto;">
+          <table class="table table-sm table-hover">
+            <thead class="table-light"><tr><th>Student ID</th><th>Name</th><th>Course</th><th>Semester</th></tr></thead>
+            <tbody>
+              {% for s in students_preview %}
+                <tr>
+                  <td>{{ s.student_id }}</td>
+                  <td>{{ s.admin.username }}</td>
+                  <td>{{ s.course.name|default:"-" }}</td>
+                  <td>{% if s.semester %}{{ s.semester.name }}{% else %}-{% endif %}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="mt-2">
+          <a class="btn btn-outline-primary" href="{% url 'student_management_app:staff_student_list' %}">View all students</a>
+        </div>
+      {% else %}
+        <div class="text-muted">No students found for your college.</div>
+      {% endif %}
+    </div>
+
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function getCookie(name) {
+  const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+  return v ? v.pop() : '';
+}
+function csrfPost(url, data) {
+  return fetch(url, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCookie('csrftoken')
+    },
+    body: JSON.stringify(data)
+  }).then(r => r.json());
+}
+</script>
 {% endblock %}

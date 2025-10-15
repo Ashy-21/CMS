@@ -1,2 +1,4 @@
 body { background: #f8f9fa; }
 .card { border-radius: 0.8rem; }
+.chart-card { min-height: 220px; }
+.chart-canvas { width: 100% !important; height: 200px !important; display:block; }

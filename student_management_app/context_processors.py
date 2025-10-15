@@ -1,5 +1,5 @@
-# student_management_app/context_processors.py
 from .models import College
+
 
 def college_profile(request):
     """

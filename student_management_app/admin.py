@@ -1,8 +1,8 @@
-# student_management_app/admin.py
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
 from django.core.exceptions import FieldError
+
 
 from .models import (
     CustomUser, College, Department, Semester, AdminHOD, Staffs, Students,
@@ -10,7 +10,6 @@ from .models import (
     LeaveReportStaff, LeaveReportStudent, FeedbackStaff, FeedbackStudent, StudentResult
 )
 
-# Admin site branding
 admin.site.site_header = "College CMS Admin"
 admin.site.site_title = "College CMS Control"
 admin.site.index_title = "Manage College CMS"
@@ -28,18 +27,15 @@ class TenantAdminMixin:
         qs = super().get_queryset(request)
         if request.user.is_superuser:
             return qs
-        # only staff users linked to a college get scoped results
         if not request.user.is_staff:
             return qs.none()
         user_college = self._user_college(request)
         if not user_college:
             return qs.none()
 
-        # attempt to filter by college field on model
         try:
             return qs.filter(college=user_college)
         except (FieldError, Exception):
-            # model doesn't have college field: be conservative -> none
             return qs.none()
 
     def has_module_permission(self, request):
@@ -88,7 +84,6 @@ class TenantAdminMixin:
         return False
 
     def save_model(self, request, obj, form, change):
-        # when non-superuser creates/edits, ensure object.college set to user's college if applicable
         if not request.user.is_superuser:
             user_college = self._user_college(request)
             if user_college and hasattr(obj, "college"):
